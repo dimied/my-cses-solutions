@@ -18,6 +18,7 @@ fi
 tp="$2"
 
 unzip -o $tp -d $fp
+#unzip -f $tp -d $fp
 
 numfails=0
 
@@ -38,7 +39,7 @@ for f in `ls -1 $fp/*.in | sort`; do
     echo "Time: "$runtime
 
     cmpres=`diff $output $res`
-    
+
     if [[ "$cmpres" -eq "0" ]]; then
     echo "OK"
     else
