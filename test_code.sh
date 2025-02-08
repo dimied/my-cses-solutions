@@ -21,6 +21,7 @@ unzip -o $tp -d $fp
 #unzip -f $tp -d $fp
 
 numfails=0
+numall=0
 
 for f in `ls -1 $fp/*.in | sort`; do
     
@@ -40,6 +41,8 @@ for f in `ls -1 $fp/*.in | sort`; do
 
     cmpres=`diff $output $res`
 
+    numall=$((numall+1))
+
     if [[ "$cmpres" -eq "0" ]]; then
     echo "OK"
     else
@@ -51,5 +54,5 @@ for f in `ls -1 $fp/*.in | sort`; do
     fi
 done
 
-echo "Fails: "$numfails
+echo "Fails: "$numfails" of "$numall
 
