@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define MAX_N 200001
-#define VALUES_PER_NODE 4
+#define VALUES_PER_NODE 8
 
 typedef struct
 {
@@ -16,8 +16,6 @@ typedef struct
 {
     void *pParent;
     // int id;
-    //  1 points to value
-    // int level;
     int leftSize;
     int rightSize;
     ValueNode *pLeftValues;
@@ -112,7 +110,6 @@ void fillNodes(int N)
 
     const int numValueNodes = dstIdx + 1;
     valueNodesUsed = numValueNodes;
-    // int id = 1;
 
     for (i = 0; i < numValueNodes; i++)
     {
@@ -123,7 +120,6 @@ void fillNodes(int N)
 
         if (i % 2 == 0)
         {
-            // pNode->id = id++;
             pNode->pParent = 0;
             pNode->pLeftSub = 0;
             pNode->pRightSub = 0;
@@ -164,9 +160,7 @@ void fillNodes(int N)
 
                 if (i % 2 == 0)
                 {
-                    // printf("L: %d = %d + %d\n", s, pSubNode->leftSize, pSubNode->rightSize);
                     pTop = pInnerNode;
-                    // pInnerNode->id = id++;
                     pInnerNode->pParent = 0;
                     pInnerNode->pLeftValues = 0;
                     pInnerNode->pRightValues = 0;
@@ -180,15 +174,6 @@ void fillNodes(int N)
                     pInnerNode->rightSize = s;
                     pInnerNode->pRightSub = pSubNode;
                 }
-#if 0
-                printf("S: %d", pInnerNode->id);
-                printf("<- %d", ((InnerNode *)pInnerNode->pLeftSub)->id);
-                if (i % 2 == 1)
-                {
-                    printf("-> %d", ((InnerNode *)pInnerNode->pRightSub)->id);
-                }
-                printf("\n");
-#endif
 
                 pSubNode->pParent = pInnerNode;
             }
@@ -197,18 +182,12 @@ void fillNodes(int N)
             rowLen = rowIdx + 1;
             pSubNodes = pNewNodes;
             pNewNodes += rowLen;
-#if 0
-            for(int j=0; j < 3;j++) {
-                //puts("-------");
-            }
-#endif
         }
     }
     else
     {
         pTop = &innerNodes[dstIdx];
     }
-    // printf("S: %d|%d||%d|%d|%d\n", pTop->leftSize, pTop->rightSize, len, numValueNodes, levels);
 }
 
 void decrementSize(ValueNode *pNode)
@@ -221,15 +200,33 @@ void decrementSize(ValueNode *pNode)
         pN->leftSize--;
         if (pN->leftSize == 0)
         {
-            pN->pLeftValues = 0;
+            //try to merge
+            if (pN->pRightValues != 0)
+            {
+                pN->pLeftValues = pN->pRightValues;
+                pN->leftSize = pN->rightSize;
+                pN->rightSize = 0;
+                pN->pRightValues = 0;
+            }
+            else
+            {
+                pN->pLeftValues = 0;
+            }
         }
     }
     if (pN->pRightValues == pNode)
     {
         pN->rightSize--;
+        //try to merge
         if (pN->rightSize == 0)
         {
             pN->pRightValues = 0;
+        }
+        else if (pN->pLeftValues == 0)
+        {
+            pN->pLeftValues = pN->pRightValues;
+            pN->leftSize = pN->rightSize;
+            pN->rightSize = 0;
         }
     }
 
@@ -255,6 +252,9 @@ void decrementSize(ValueNode *pNode)
         pN = pParent;
     }
 }
+
+#define STORE_LEVEL_INFO 0
+#define ALLOW_DEBUG 0
 
 int main()
 {
@@ -289,8 +289,10 @@ int main()
     // Brute force is O(N^2)
     // But we can do in O(N*log(N))
     fillNodes(N);
+#if STORE_LEVEL_INFO
     int levelValues[100][5];
-    int debug = 0;
+#endif
+    // int debug = 0;
 
     i = k + 1;
     int resIdx = 0, a = 0;
@@ -306,15 +308,20 @@ int main()
         {
             i = N;
         }
+#if STORE_LEVEL_INFO
         int levelIdx = 0;
+#endif
+#if ALLOW_DEBUG
         if (debug > 0)
         {
             printf("\n|%d\n", i);
         }
+#endif
 
         // find index
         InnerNode *pNode = pTop;
         int start = 0, value = 0;
+#if ALLOW_DEBUG
         if (debug > 0)
         {
             puts("+++++");
@@ -329,25 +336,33 @@ int main()
             }
             puts("+++++");
         }
+#endif
 
         while (value == 0)
         {
             int c = 0;
+#if STORE_LEVEL_INFO
             levelValues[levelIdx][4] = -1;
+#endif
 
             if (i <= start + pNode->leftSize)
             {
+#if STORE_LEVEL_INFO
                 levelValues[levelIdx][0] = 'L';
                 levelValues[levelIdx][2] = start + 1;
                 levelValues[levelIdx][3] = start + pNode->leftSize;
+#endif
 
                 ValueNode *pVN = pNode->pLeftValues;
                 if (pVN != 0)
                 {
-                    levelValues[levelIdx][1] = 'V';
-                    // levelValues[levelIdx][3] = start;
                     start = i - start;
+
+#if STORE_LEVEL_INFO
+                    levelValues[levelIdx][1] = 'V';
                     levelValues[levelIdx][4] = start;
+#endif
+#if ALLOW_DEBUG
                     if (debug > 0)
                     {
                         for (int j = 0; j < VALUES_PER_NODE; j++)
@@ -356,8 +371,7 @@ int main()
                         }
                         puts("");
                     }
-
-                    // printf("CL: %d@%d\n", i, start);
+#endif
 
                     for (int j = 0; j < VALUES_PER_NODE; j++)
                     {
@@ -372,10 +386,12 @@ int main()
                                 break;
                             }
                         }
+#if ALLOW_DEBUG
                         else if (debug > 0)
                         {
                             printf("...%d\n", j);
                         }
+#endif
                     }
                     if (c > 0)
                     {
@@ -386,33 +402,41 @@ int main()
                     {
                         printf("FAILED:L: %d|%d\n", i, start);
                     }
+#if STORE_LEVEL_INFO
                     levelIdx++;
+#endif
                     break;
                 }
                 else
                 {
                     pNode = pNode->pLeftSub;
+#if STORE_LEVEL_INFO
                     levelValues[levelIdx][1] = 'S';
+
                     levelIdx++;
+#endif
                     continue;
                 }
             }
             else
             {
                 start += pNode->leftSize;
+#if STORE_LEVEL_INFO
                 levelValues[levelIdx][0] = 'R';
 
                 levelValues[levelIdx][2] = start + 1;
                 levelValues[levelIdx][3] = start + pNode->rightSize;
+#endif
 
                 ValueNode *pVN = pNode->pRightValues;
                 if (pVN != 0)
                 {
-                    levelValues[levelIdx][1] = 'V';
-
                     start = i - start;
+#if STORE_LEVEL_INFO
+                    levelValues[levelIdx][1] = 'V';
                     levelValues[levelIdx][4] = start;
-                    // printf("CR: %d@%d\n", i, start);
+#endif
+#if ALLOW_DEBUG
                     if (debug > 0)
                     {
                         for (int j = 0; j < VALUES_PER_NODE; j++)
@@ -421,7 +445,7 @@ int main()
                         }
                         puts("");
                     }
-
+#endif
                     for (int j = 0; j < VALUES_PER_NODE; j++)
                     {
                         if (pVN->values[j] > 0)
@@ -434,10 +458,12 @@ int main()
                                 break;
                             }
                         }
+#if ALLOW_DEBUG
                         else if (debug > 0)
                         {
                             printf("...%d\n", j);
                         }
+#endif
                     }
                     if (c > 0)
                     {
@@ -448,18 +474,24 @@ int main()
                     {
                         printf("FAILED:R: %d|%d\n", i, start);
                     }
+#if STORE_LEVEL_INFO
                     levelIdx++;
+#endif
                     break;
                 }
                 else
                 {
                     pNode = pNode->pRightSub;
+#if STORE_LEVEL_INFO
                     levelValues[levelIdx][1] = 'S';
                     levelIdx++;
+#endif
                     continue;
                 }
             }
         }
+#if STORE_LEVEL_INFO
+#if ALLOW_DEBUG
         if (debug > 0)
         {
             for (int j = 0; j < levelIdx; j++)
@@ -468,6 +500,8 @@ int main()
             }
             puts("----");
         }
+#endif
+#endif
 
         if (value > 0)
         {
@@ -494,11 +528,16 @@ int main()
                     numbers[resIdx] = valueNodes[i].values[j];
                     resIdx++;
                     printf(" %d", valueNodes[i].values[j]);
+                    i = valueNodesUsed;
+                    break;
                 }
             }
         }
     }
 
+    putchar('\n');
+
+#if ALLOW_DEBUG
     if (debug > 0)
     {
         puts("");
@@ -508,117 +547,7 @@ int main()
         }
         printf("\nS: %d\n", resIdx);
     }
-
-#if 0
-    i = k + 1;
-    // int removed[MAX_N];
-    // int remIdx = 0;
-    int s = 1, numRemoved;
-    if (i <= N)
-    {
-        // k++;
-        while (k <= N)
-        {
-            int dst = i, src = i;
-            numRemoved = 0;
-            while (i <= N)
-            {
-                printf((s > 0) ? "%d" : " %d", numbers[i]);
-                --s;
-                ++numRemoved;
-                i += k + 1;
-            }
-            i -= N;
-            N -= numRemoved;
-
-            for (; numRemoved > 0; numRemoved--)
-            {
-                // skip removed
-                ++src;
-                for (int j = 0; j < k; j++)
-                {
-                    numbers[dst] = numbers[src];
-                    ++src;
-                    ++dst;
-                }
-            }
-            numRemoved = 0;
-        }
-        switch (N)
-        {
-        case 1:
-            printf(" %d\n", numbers[1]);
-            return 0;
-        case 0:
-            putchar('\n');
-            return 0;
-        default:
-            break;
-        }
-    }
-
-    if (k > N)
-    {
-        i = (i) % N;
-        while (i == 0 && N > 1)
-        {
-            printf((s > 0) ? "%d" : " %d", numbers[N]);
-            --N;
-            i = (k + 1) % N;
-        }
-        int count = 0;
-        while (N > 1)
-        {
-            int removed = 0;
-            int start = i;
-            int last = i - 1;
-            while (last < i && i < N)
-            {
-                printf((s > 0) ? "%d" : " %d", numbers[i]);
-                numbers[i] = -1; // mark as invalid
-                last = i;
-                --s;
-                ++removed;
-                i = (i + k + 1) % N;
-                if (i == 0)
-                {
-                    printf((s > 0) ? "%d" : " %d", numbers[N]);
-                    numbers[N] = -1;
-                    --N;
-                    i = (k + 1) % N;
-                    break;
-                }
-            }
-
-            int dst = start;
-            int src = dst + 1;
-            for (; src <= N; src++)
-            {
-                if (numbers[src] > 0)
-                {
-                    numbers[dst] = numbers[src];
-                    ++dst;
-                }
-            }
-            N -= removed;
-#if 0
-            printf("R:%d %d\n", removed, i);
-
-            count++;
-            if (count == 20)
-            {
-                break;
-            }
 #endif
-        }
-        if (N == 1)
-        {
-            printf(" %d", numbers[1]);
-        }
-    }
-#endif
-
-    putchar('\n');
 
     return 0;
 }
