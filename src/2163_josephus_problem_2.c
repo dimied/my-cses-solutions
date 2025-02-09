@@ -168,13 +168,11 @@ void fillNodes(int N)
         }
         ++pValueNode;
     }
-    // int levels = 1;//, len = dstIdx;
     //
     if (dstIdx > 0)
     {
         dstIdx++;
 
-        // len = 0;
         int rowIdx, rowLen = dstIdx;
 
         InnerNode *pSubNodes = &innerNodes[0];
@@ -313,8 +311,6 @@ void decrementSize(ValueNode *pNode)
         pN = pParent;
     }
 }
-
-#define STORE_LEVEL_INFO 0
 #define ALLOW_DEBUG 0
 #define PRINT_BUFFER_SIZE 32
 #define PRINT_INC 4
@@ -356,15 +352,13 @@ int main()
         return 0;
     }
     // Brute force is O(N^2)
+    //
     // But we can do it in O(N*log(N))
+    //-we build a tree in O(N)
+    //-we remove every item in O(log(n))
     fillNodes(N);
-#if STORE_LEVEL_INFO
-    int levelValues[100][5];
-#endif
-    // int debug = 0;
 
     i = k + 1;
-    // int resIdx = 0;
     int a = 0;
     int printBuffer[PRINT_BUFFER_SIZE];
     int printIdx = 0;
@@ -377,9 +371,7 @@ int main()
         {
             i = N;
         }
-#if STORE_LEVEL_INFO
-        int levelIdx = 0;
-#endif
+
 #if ALLOW_DEBUG
         if (debug > 0)
         {
@@ -409,40 +401,31 @@ int main()
 
         while (value == 0)
         {
-            // int c = 0;
-#if STORE_LEVEL_INFO
-            levelValues[levelIdx][4] = -1;
-#endif
-
             if (i <= start + pNode->leftSize)
             {
-#if STORE_LEVEL_INFO
-                levelValues[levelIdx][0] = 'L';
-                levelValues[levelIdx][2] = start + 1;
-                levelValues[levelIdx][3] = start + pNode->leftSize;
-#endif
-
                 ValueNode *pVN = pNode->pLeftValues;
                 if (pVN != 0)
                 {
                     start = i - start;
 
-#if STORE_LEVEL_INFO
-                    levelValues[levelIdx][1] = 'V';
-                    levelValues[levelIdx][4] = start;
-#endif
-#if ALLOW_DEBUG
-                    if (debug > 0)
+#if DO_USE_ASSIGN_BITS
+                    int j = -1;
+                    unsigned int assignment = pVN->assigned;
+                    while (start > 0 && assignment > 0)
                     {
-                        for (int j = 0; j < VALUES_PER_NODE; j++)
-                        {
-                            printf("%d ", pVN->values[j]);
-                        }
-                        puts("");
+                        start -= (int)(assignment & 0x1);
+                        assignment >>= 1;
+                        ++j;
                     }
-#endif
-
-                    for (int j = 0; j < VALUES_PER_NODE; j++)
+                    if (j >= 0)
+                    {
+                        pVN->assigned &= ~(0x1 << j);
+                        value = pVN->values[j];
+                        pVN->values[j] = -1;
+                    }
+#else
+                    int j = 0;
+                    for (; j < VALUES_PER_NODE; j++)
                     {
                         if (pVN->values[j] > 0)
                         {
@@ -455,13 +438,9 @@ int main()
                                 break;
                             }
                         }
-#if ALLOW_DEBUG
-                        else if (debug > 0)
-                        {
-                            printf("...%d\n", j);
-                        }
-#endif
                     }
+#endif
+
                     if (value > 0)
                     {
                         decrementSize(pVN);
@@ -470,51 +449,41 @@ int main()
                     {
                         printf("FAILED:L: %d|%d\n", i, start);
                     }
-#if STORE_LEVEL_INFO
-                    levelIdx++;
-#endif
                     break;
                 }
                 else
                 {
                     pNode = pNode->pLeftSub;
-#if STORE_LEVEL_INFO
-                    levelValues[levelIdx][1] = 'S';
-
-                    levelIdx++;
-#endif
                     continue;
                 }
             }
             else
             {
                 start += pNode->leftSize;
-#if STORE_LEVEL_INFO
-                levelValues[levelIdx][0] = 'R';
-
-                levelValues[levelIdx][2] = start + 1;
-                levelValues[levelIdx][3] = start + pNode->rightSize;
-#endif
-
                 ValueNode *pVN = pNode->pRightValues;
+
                 if (pVN != 0)
                 {
                     start = i - start;
-#if STORE_LEVEL_INFO
-                    levelValues[levelIdx][1] = 'V';
-                    levelValues[levelIdx][4] = start;
-#endif
-#if ALLOW_DEBUG
-                    if (debug > 0)
+
+#if DO_USE_ASSIGN_BITS
+                    int j = -1;
+                    unsigned int assignment = pVN->assigned;
+                    while (start > 0 && assignment > 0)
                     {
-                        for (int j = 0; j < VALUES_PER_NODE; j++)
-                        {
-                            printf("%d ", pVN->values[j]);
-                        }
-                        puts("");
+                        start -= (int)(assignment & 0x1);
+                        assignment >>= 1;
+                        ++j;
                     }
-#endif
-                    for (int j = 0; j < VALUES_PER_NODE; j++)
+                    if (j >= 0)
+                    {
+                        pVN->assigned &= (~(0x1 << j));
+                        value = pVN->values[j];
+                        pVN->values[j] = -1;
+                    }
+#else
+                    int j = 0;
+                    for (; j < VALUES_PER_NODE; j++)
                     {
                         if (pVN->values[j] > 0)
                         {
@@ -523,16 +492,12 @@ int main()
                             {
                                 value = pVN->values[j];
                                 pVN->values[j] = -1;
+
                                 break;
                             }
                         }
-#if ALLOW_DEBUG
-                        else if (debug > 0)
-                        {
-                            printf("...%d\n", j);
-                        }
-#endif
                     }
+#endif
                     if (value > 0)
                     {
                         decrementSize(pVN);
@@ -541,18 +506,11 @@ int main()
                     {
                         printf("FAILED:R: %d|%d\n", i, start);
                     }
-#if STORE_LEVEL_INFO
-                    levelIdx++;
-#endif
                     break;
                 }
                 else
                 {
                     pNode = pNode->pRightSub;
-#if STORE_LEVEL_INFO
-                    levelValues[levelIdx][1] = 'S';
-                    levelIdx++;
-#endif
                     continue;
                 }
             }
@@ -572,12 +530,8 @@ int main()
 
         if (value > 0)
         {
-            // printf((a == 0) ? "%d" : " %d", value);
             printBuffer[printIdx] = value;
             ++printIdx;
-            // numbers[resIdx] = value;
-            // resIdx++;
-            //++a;
         }
         else
         {
@@ -595,19 +549,17 @@ int main()
         i += k;
         --N;
     }
-    //
-    if (printIdx > 0)
+    // Print the rest
+    for (int j = 0; j < printIdx; j++)
     {
-        for (int j = 0; j < printIdx; j++)
+        if (a != 0)
         {
-            if (a != 0)
-            {
-                putchar(' ');
-            }
-            printf("%d", printBuffer[j]);
-            ++a;
+            putchar(' ');
         }
+        printf("%d", printBuffer[j]);
+        ++a;
     }
+
 #if 0
     for (i = 0; i < valueNodesUsed; i++)
     {
@@ -629,8 +581,6 @@ int main()
 #endif
 
     putchar('\n');
-
-    // printf("LD: %d\n", LOCAL_DEV_ENV);
 
 #if LOCAL_DEV_ENV
     fprintf(stderr, "#merges: %d|%d\n", numMerges, numMerges2);

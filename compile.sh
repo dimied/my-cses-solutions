@@ -5,5 +5,5 @@ p="prog"$1
 
 for f in `ls $n`; do
     echo "Compile: "$f
-    gcc -Wall -DLOCAL_DEV_ENV=1 $f -o $p
+    gcc -Wall -pg -DLOCAL_DEV_ENV=1 $f -o $p
 done

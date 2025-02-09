@@ -28,6 +28,7 @@ for f in `ls -1 $fp/*.in | sort`; do
     output=${f//in/out}
     res=${f//in/res}
     err=${f//in/err}
+    tlog=${f//in/time.log}
 
     echo "> "$f" > "$output
     
@@ -36,6 +37,8 @@ for f in `ls -1 $fp/*.in | sort`; do
     $1 < $f > $res 2>$err
 
     end=`date +%s.%N`
+
+    gprof $1 ./gmon.out > $tlog
 
     runtime=$( echo "$end - $start" | bc -l )
     echo "Time: "$runtime
