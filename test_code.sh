@@ -27,12 +27,13 @@ for f in `ls -1 $fp/*.in | sort`; do
     
     output=${f//in/out}
     res=${f//in/res}
+    err=${f//in/err}
 
     echo "> "$f" > "$output
     
     start=`date +%s.%N`
 
-    $1 < $f > $res
+    $1 < $f > $res 2>$err
 
     end=`date +%s.%N`
 

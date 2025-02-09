@@ -3,35 +3,50 @@
 #define MAX_N 200001
 #define VALUES_PER_NODE 8
 
+#define USE_ASSIGN_BITS 1
+
+#if USE_ASSIGN_BITS && VALUES_PER_NODE < 33
+#define DO_USE_ASSIGN_BITS 1
+#else
+#define DO_USE_ASSIGN_BITS 0
+#endif
+
+#ifndef LOCAL_DEV_ENV
+#define LOCAL_DEV_ENV 0
+#endif
+
 typedef struct
 {
     void *pParent;
     // number of valid cells
     int size;
+#if DO_USE_ASSIGN_BITS
+    unsigned int assigned;
+#endif
     // removed values are negative
     int values[VALUES_PER_NODE];
 } ValueNode;
 
 typedef struct
 {
-    void *pParent;
-    // int id;
     int leftSize;
     int rightSize;
+    int state;
     ValueNode *pLeftValues;
     ValueNode *pRightValues;
     void *pLeftSub;
     void *pRightSub;
+    void *pParent;
 } InnerNode;
 
 int numbers[MAX_N];
 
 #define MAX_LIMIT (MAX_N + VALUES_PER_NODE) / VALUES_PER_NODE
 
-InnerNode innerNodes[MAX_LIMIT * 2];
+InnerNode innerNodes[MAX_LIMIT + 20];
 ValueNode valueNodes[MAX_LIMIT];
-int valueNodesUsed = 0;
 
+int valueNodesUsed = 0, numMerges = 0, numMerges2 = 0;
 InnerNode *pTop;
 
 void josephine2(int N)
@@ -96,9 +111,18 @@ void josephine2(int N)
     }
 }
 
+#if DO_USE_ASSIGN_BITS
+#define ALL_ASSIGN_BITS_SET ((1UL << VALUES_PER_NODE) - 1)
+#endif
+/**
+ * Fills the nodes with values
+ */
 void fillNodes(int N)
 {
     int dstIdx = 0, i;
+#if DO_USE_ASSIGN_BITS
+
+#endif
     // Fill value nodes
     for (i = 0; i < N; i++)
     {
@@ -106,46 +130,55 @@ void fillNodes(int N)
         int j = i % VALUES_PER_NODE;
         valueNodes[dstIdx].values[j] = i + 1;
         valueNodes[dstIdx].size = j + 1;
+#if DO_USE_ASSIGN_BITS
+        valueNodes[dstIdx].assigned = (unsigned int)ALL_ASSIGN_BITS_SET;
+#endif
     }
+
+#if DO_USE_ASSIGN_BITS
+    // need to adjust just the last one
+    valueNodes[dstIdx].assigned = (unsigned int)((1UL << valueNodes[dstIdx].size) - 1);
+#endif
 
     const int numValueNodes = dstIdx + 1;
     valueNodesUsed = numValueNodes;
+    ValueNode *pValueNode = &valueNodes[0];
 
     for (i = 0; i < numValueNodes; i++)
     {
         dstIdx = i / 2;
         InnerNode *pNode = &innerNodes[dstIdx];
 
-        valueNodes[i].pParent = pNode;
+        pValueNode->pParent = pNode;
 
         if (i % 2 == 0)
         {
             pNode->pParent = 0;
             pNode->pLeftSub = 0;
             pNode->pRightSub = 0;
-            pNode->leftSize = valueNodes[i].size;
+            pNode->leftSize = pValueNode->size;
             pNode->rightSize = 0;
-            pNode->pLeftValues = &valueNodes[i];
+            pNode->pLeftValues = pValueNode;
             pNode->pRightValues = 0;
         }
         else
         {
-            pNode->rightSize = valueNodes[i].size;
-            pNode->pRightValues = &valueNodes[i];
+            pNode->rightSize = pValueNode->size;
+            pNode->pRightValues = pValueNode;
         }
+        ++pValueNode;
     }
-    int levels = 1, len = dstIdx;
+    // int levels = 1;//, len = dstIdx;
     //
     if (dstIdx > 0)
     {
         dstIdx++;
 
-        len = 0;
+        // len = 0;
         int rowIdx, rowLen = dstIdx;
 
-        InnerNode *pLevelNodes = &innerNodes[0];
-        InnerNode *pSubNodes = pLevelNodes;
-        InnerNode *pNewNodes = pLevelNodes + rowLen;
+        InnerNode *pSubNodes = &innerNodes[0];
+        InnerNode *pNewNodes = pSubNodes + rowLen;
         pTop = pSubNodes;
 
         while (rowLen > 1)
@@ -170,15 +203,14 @@ void fillNodes(int N)
                 }
                 else
                 {
-                    // printf("R: %d = %d + %d\n", s, pSubNode->leftSize, pSubNode->rightSize);
                     pInnerNode->rightSize = s;
                     pInnerNode->pRightSub = pSubNode;
                 }
 
                 pSubNode->pParent = pInnerNode;
             }
-            ++levels;
-            len += rowLen;
+            //++levels;
+            // len += rowLen;
             rowLen = rowIdx + 1;
             pSubNodes = pNewNodes;
             pNewNodes += rowLen;
@@ -194,54 +226,83 @@ void decrementSize(ValueNode *pNode)
 {
     pNode->size--;
     InnerNode *pN = pNode->pParent;
+    int merged = 0, numChildren = 0;
 
     if (pN->pLeftValues == pNode)
     {
         pN->leftSize--;
+        ++numChildren;
         if (pN->leftSize == 0)
         {
-            //try to merge
+            // try to merge
             if (pN->pRightValues != 0)
             {
-                pN->pLeftValues = pN->pRightValues;
                 pN->leftSize = pN->rightSize;
                 pN->rightSize = 0;
+                pN->pLeftValues = pN->pRightValues;
                 pN->pRightValues = 0;
+
+                ++merged;
             }
             else
             {
+                --numChildren;
                 pN->pLeftValues = 0;
             }
         }
     }
+
     if (pN->pRightValues == pNode)
     {
         pN->rightSize--;
-        //try to merge
+        ++numChildren;
+        // try to merge
         if (pN->rightSize == 0)
         {
             pN->pRightValues = 0;
+            --numChildren;
         }
         else if (pN->pLeftValues == 0)
         {
-            pN->pLeftValues = pN->pRightValues;
             pN->leftSize = pN->rightSize;
             pN->rightSize = 0;
+            pN->pLeftValues = pN->pRightValues;
+            pN->pRightValues = 0;
+            ++merged;
         }
     }
 
+#if LOCAL_DEV_ENV
+    numMerges += merged;
+#endif
+
+    if (numChildren == 2 && (pN->leftSize + pN->rightSize) <= VALUES_PER_NODE)
+    {
+#if LOCAL_DEV_ENV
+        ++numMerges2;
+#endif
+    }
+
+    // Update the values in the path
     while (pN->pParent != 0)
     {
         InnerNode *pParent = (InnerNode *)pN->pParent;
-        if ((pParent)->pLeftSub == pN)
+        if (pParent->pLeftSub == pN)
         {
             --pParent->leftSize;
             if (pParent->leftSize == 0)
             {
                 pParent->pLeftSub = 0;
+                if (pParent->pRightSub != 0)
+                {
+                    pParent->pLeftSub = pParent->pRightSub;
+                    pParent->pRightSub = 0;
+                    pParent->leftSize = pParent->rightSize;
+                    pParent->rightSize = 0;
+                }
             }
         }
-        if ((pParent)->pRightSub == pN)
+        else if (pParent->pRightSub == pN)
         {
             --pParent->rightSize;
             if (pParent->rightSize == 0)
@@ -255,6 +316,14 @@ void decrementSize(ValueNode *pNode)
 
 #define STORE_LEVEL_INFO 0
 #define ALLOW_DEBUG 0
+#define PRINT_BUFFER_SIZE 32
+#define PRINT_INC 4
+#define PRINT_LINE(BUF, IDX, F) printf(F, BUF[IDX], BUF[IDX + 1], BUF[IDX + 2], BUF[IDX + 3]);
+
+char *printFormats[2] = {
+    "%d %d %d %d",
+    " %d %d %d %d",
+};
 
 int main()
 {
@@ -287,7 +356,7 @@ int main()
         return 0;
     }
     // Brute force is O(N^2)
-    // But we can do in O(N*log(N))
+    // But we can do it in O(N*log(N))
     fillNodes(N);
 #if STORE_LEVEL_INFO
     int levelValues[100][5];
@@ -295,15 +364,15 @@ int main()
     // int debug = 0;
 
     i = k + 1;
-    int resIdx = 0, a = 0;
-    while (N > 1)
-    {
-        if (a > 0)
-        {
-            i += k;
-        }
+    // int resIdx = 0;
+    int a = 0;
+    int printBuffer[PRINT_BUFFER_SIZE];
+    int printIdx = 0;
 
+    while (N > 0)
+    {
         i = i % N;
+
         if (i == 0)
         {
             i = N;
@@ -340,7 +409,7 @@ int main()
 
         while (value == 0)
         {
-            int c = 0;
+            // int c = 0;
 #if STORE_LEVEL_INFO
             levelValues[levelIdx][4] = -1;
 #endif
@@ -380,7 +449,7 @@ int main()
                             --start;
                             if (start == 0)
                             {
-                                c = pVN->values[j];
+                                value = pVN->values[j];
                                 pVN->values[j] = -1;
 
                                 break;
@@ -393,9 +462,8 @@ int main()
                         }
 #endif
                     }
-                    if (c > 0)
+                    if (value > 0)
                     {
-                        value = c;
                         decrementSize(pVN);
                     }
                     else
@@ -453,7 +521,7 @@ int main()
                             --start;
                             if (start == 0)
                             {
-                                c = pVN->values[j];
+                                value = pVN->values[j];
                                 pVN->values[j] = -1;
                                 break;
                             }
@@ -465,9 +533,8 @@ int main()
                         }
 #endif
                     }
-                    if (c > 0)
+                    if (value > 0)
                     {
-                        value = c;
                         decrementSize(pVN);
                     }
                     else
@@ -505,18 +572,43 @@ int main()
 
         if (value > 0)
         {
-            printf((a == 0) ? "%d" : " %d", value);
-            numbers[resIdx] = value;
-            resIdx++;
+            // printf((a == 0) ? "%d" : " %d", value);
+            printBuffer[printIdx] = value;
+            ++printIdx;
+            // numbers[resIdx] = value;
+            // resIdx++;
+            //++a;
         }
         else
         {
             break;
         }
-        ++a;
-
+        if (printIdx == PRINT_BUFFER_SIZE)
+        {
+            for (int j = 0; j < PRINT_BUFFER_SIZE; j += PRINT_INC)
+            {
+                PRINT_LINE(printBuffer, j, printFormats[a]);
+                a = 1;
+            }
+            printIdx = 0;
+        }
+        i += k;
         --N;
     }
+    //
+    if (printIdx > 0)
+    {
+        for (int j = 0; j < printIdx; j++)
+        {
+            if (a != 0)
+            {
+                putchar(' ');
+            }
+            printf("%d", printBuffer[j]);
+            ++a;
+        }
+    }
+#if 0
     for (i = 0; i < valueNodesUsed; i++)
     {
         if (valueNodes[i].size > 0)
@@ -534,8 +626,15 @@ int main()
             }
         }
     }
+#endif
 
     putchar('\n');
+
+    // printf("LD: %d\n", LOCAL_DEV_ENV);
+
+#if LOCAL_DEV_ENV
+    fprintf(stderr, "#merges: %d|%d\n", numMerges, numMerges2);
+#endif
 
 #if ALLOW_DEBUG
     if (debug > 0)
