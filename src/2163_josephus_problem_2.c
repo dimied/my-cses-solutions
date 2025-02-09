@@ -274,10 +274,43 @@ void decrementSize(ValueNode *pNode)
     numMerges += merged;
 #endif
 
-    if (numChildren == 2 && (pN->leftSize + pN->rightSize) <= VALUES_PER_NODE)
+    int lengthSum = (pN->leftSize + pN->rightSize);
+
+    if (pN->leftSize * pN->rightSize > 0 && lengthSum <= VALUES_PER_NODE)
     {
 #if LOCAL_DEV_ENV
         ++numMerges2;
+        //printf("MERGE!\n");
+#endif
+
+        int l = pN->leftSize, r = pN->rightSize;
+        ValueNode *pLeft = pN->pLeftValues, *pRight = pN->pRightValues;
+        int dstIdx = 0;
+        for (int j = 0; j < VALUES_PER_NODE && l > 0; j++)
+        {
+            if (pLeft->values[j] > 0)
+            {
+                pLeft->values[dstIdx] = pLeft->values[j];
+                dstIdx++;
+                --l;
+            }
+        }
+        for (int j = 0; j < VALUES_PER_NODE && r > 0; j++)
+        {
+            if (pRight->values[j] > 0)
+            {
+                pLeft->values[dstIdx] = pRight->values[j];
+                pRight->values[j] = -1;
+                dstIdx++;
+                --r;
+            }
+        }
+        pN->rightSize = 0;
+        pN->leftSize = lengthSum;
+        pN->pRightValues = 0;
+        pLeft->size = lengthSum;
+#if DO_USE_ASSIGN_BITS
+        pLeft->assigned = (unsigned int)((0x1UL << lengthSum) - 1);
 #endif
     }
 
@@ -311,14 +344,14 @@ void decrementSize(ValueNode *pNode)
         pN = pParent;
     }
 }
-#define ALLOW_DEBUG 0
-#define PRINT_BUFFER_SIZE 32
-#define PRINT_INC 4
-#define PRINT_LINE(BUF, IDX, F) printf(F, BUF[IDX], BUF[IDX + 1], BUF[IDX + 2], BUF[IDX + 3]);
+#define ALLOW_DEBUG 1
+#define PRINT_BUFFER_SIZE 64
+#define PRINT_INC 8
+#define PRINT_LINE(BUF, IDX, F) printf(F, BUF[IDX], BUF[IDX + 1], BUF[IDX + 2], BUF[IDX + 3], BUF[IDX+4], BUF[IDX + 5], BUF[IDX + 6], BUF[IDX + 7]);
 
 char *printFormats[2] = {
-    "%d %d %d %d",
-    " %d %d %d %d",
+    "%d %d %d %d %d %d %d %d",
+    " %d %d %d %d %d %d %d %d",
 };
 
 int main()
@@ -362,6 +395,11 @@ int main()
     int a = 0;
     int printBuffer[PRINT_BUFFER_SIZE];
     int printIdx = 0;
+
+
+#if ALLOW_DEBUG
+    int debug = 0;
+#endif
 
     while (N > 0)
     {
@@ -584,18 +622,6 @@ int main()
 
 #if LOCAL_DEV_ENV
     fprintf(stderr, "#merges: %d|%d\n", numMerges, numMerges2);
-#endif
-
-#if ALLOW_DEBUG
-    if (debug > 0)
-    {
-        puts("");
-        for (int j = 0; j < resIdx; j++)
-        {
-            printf("%d ", numbers[j]);
-        }
-        printf("\nS: %d\n", resIdx);
-    }
 #endif
 
     return 0;
