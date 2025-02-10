@@ -3,7 +3,8 @@
 n="./src/"$1"*"
 p="prog"$1
 
+#$2 stores options, e.g. -pg for profiling
 for f in `ls $n`; do
     echo "Compile: "$f
-    gcc -Wall -pg -DLOCAL_DEV_ENV=1 $f -o $p
+    gcc -Wall $2 -DLOCAL_DEV_ENV=1 $f -o $p
 done
