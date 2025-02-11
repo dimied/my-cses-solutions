@@ -4,6 +4,10 @@
 #define LOCAL_DEV_ENV 0
 #endif
 
+#if LOCAL_DEV_ENV
+#include <sys/time.h>
+#endif
+
 #define MAX_HEIGHT 1000
 #define MAX_WIDTH 1000
 
@@ -425,6 +429,10 @@ int main()
     int offset = 0, mapOffset = 0;
     int lastOffset = -1;
 #endif
+#if LOCAL_DEV_ENV
+    struct timeval begin, end;
+    gettimeofday(&begin, 0);
+#endif
 
     for (rowIdx = 0; rowIdx < height; rowIdx++)
     {
@@ -477,6 +485,16 @@ int main()
             minY = rowIdx;
         }
     }
+#if LOCAL_DEV_ENV
+    gettimeofday(&end, 0);
+
+    long seconds = end.tv_sec - begin.tv_sec;
+    long microseconds = end.tv_usec - begin.tv_usec;
+    double elapsed = seconds + microseconds * 1e-6;
+
+    fprintf(stderr, "#time: %f\n", elapsed);
+#endif
+
 #pragma GCC diagnostic pop
 
     if (used < 2)
@@ -490,7 +508,7 @@ int main()
 
 #if LOCAL_DEV_ENV
     gUsed = used;
-    //printMap(height, width, 0);
+    // printMap(height, width, 0);
 #endif
 
     // DFS works, but produces stack errors locally.
