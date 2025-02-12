@@ -10,6 +10,7 @@ typedef struct
     int num;
     int firstPrime;
     int index;
+    int count;
 } NumberAndFirstPrime;
 
 #define MAX_N 100000
@@ -73,16 +74,18 @@ int main()
     int primeSize = 10000;
     int prev = -1;
 
-    for (; i < N; i++)
+    for (i = 0; i < N; i++)
     {
         scanf("%d", &currentValue);
 
         if (prev == currentValue)
         {
+            numbers[j].count++;
             continue;
         }
         prev = currentValue;
-        numbers[j].index = i + 1;
+        numbers[j].index = i;
+        numbers[j].count = 1;
         // trivial
         if (currentValue == 1)
         {
@@ -95,15 +98,15 @@ int main()
             for (; pIdx < primeSize; pIdx++)
             {
                 p = primes[pIdx];
+                if (currentValue % p == 0)
+                {
+                    numbers[j].firstPrime = p;
+                    break;
+                }
                 if (p * p > currentValue)
                 {
                     // New prime found
                     numbers[j].firstPrime = currentValue;
-                    break;
-                }
-                if (currentValue % p == 0)
-                {
-                    numbers[j].firstPrime = p;
                     break;
                 }
             }
@@ -112,44 +115,100 @@ int main()
         ++j;
     }
 #pragma GCC diagnostic pop
+    if (j == 1)
+    {
+        printf("0\n");
+        return 0;
+    }
     long long int count = 0; //(N - numOnes) * (numOnes);
     N = j;
-    if (N > 0)
-    {
-        qsort(numbers, N, sizeof(NumberAndFirstPrime), cmp);
 
-        int prevPrime = numbers[0].firstPrime;
-        counters[0].firstPrime = prevPrime;
-        counters[0].num = 1;
-        j = 0;
+    qsort(numbers, N, sizeof(NumberAndFirstPrime), cmp);
+
+    int prevPrime = numbers[0].firstPrime;
+    counters[0].firstPrime = prevPrime;
+    counters[0].num = 1;
+    j = 0;
+    for (i = 1; i < N; i++)
+    {
+        if (numbers[i].firstPrime == prevPrime)
+        {
+            ++counters[j].num;
+        }
+        else
+        {
+            ++j;
+            counters[j].firstPrime = numbers[i].firstPrime;
+            counters[j].num = 1;
+        }
+        prevPrime = numbers[i].firstPrime;
+    }
+    // All the same?
+    if (j == 0)
+    {
+        printf("%lld\n", count);
+        return 0;
+    }
+
+    i = 1;
+    int li = 1, num = numbers[0].num, prime = numbers[0].firstPrime;
+
+    if (prime == 1)
+    {
         for (i = 1; i < N; i++)
         {
-            if (numbers[i].firstPrime == prevPrime)
+            if (prime != numbers[j].firstPrime)
             {
-                ++counters[j].num;
+                break;
             }
-            else
-            {
-                ++j;
-                counters[j].firstPrime = numbers[i].firstPrime;
-                counters[j].num = 1;
-            }
-            prevPrime = numbers[i].firstPrime;
         }
-        // All the same?
-        if (j == 0)
-        {
-            printf("%lld\n", count);
-            return 0;
-        }
-        // Now we have an array sorted by lowest prime factors
-        // E.g. an array of size 10 = 2 + 3 + 4 + 1 (2,3,4,1 different subarrays)
-        // Then we need just to sum up  2*(10-2) + 3*(8-3) + 4*(5-4) = 35
-        // Example on the website: 5 4 20 1 16 17 5 15
-        //  (N-numOnes)*numOnes is 7
-        // Sorted: [4 16 20] [5 15] [17]
-        //  3*(6-3) + 2*(3-2) = 9 + 2
+        count += N - i;
+        prime = numbers[i].firstPrime;
+        num = numbers[i].num;
+        li = i + 1;
     }
+
+    for (; i < N; i++)
+    {
+        j = li;
+        while (j < N && prime == numbers[j].firstPrime)
+        {
+            ++j;
+        }
+        if (j == N)
+        {
+            break;
+        }
+        li = j;
+        for (; j < N; j++)
+        {
+            if (numbers[j].num % prime != 1)
+            {
+                ++count;
+            }
+        }
+        // Next different
+        while (1 == 0 && i < N && numbers[i].num == num)
+        {
+            ++i;
+        }
+        if (i == N)
+        {
+            break;
+        }
+        for (; i < N; i++)
+        {
+        }
+
+        prime = numbers[i].firstPrime;
+    }
+    // Now we have an array sorted by lowest prime factors
+    // E.g. an array of size 10 = 2 + 3 + 4 + 1 (2,3,4,1 different subarrays)
+    // Then we need just to sum up  2*(10-2) + 3*(8-3) + 4*(5-4) = 35
+    // Example on the website: 5 4 20 1 16 17 5 15
+    //  (N-numOnes)*numOnes is 7
+    // Sorted: [4 16 20] [5 15] [17]
+    //  3*(6-3) + 2*(3-2) = 9 + 2
 
     printf("%lld\n", count);
     return 0;
