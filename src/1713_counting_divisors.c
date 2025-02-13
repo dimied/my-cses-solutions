@@ -5,7 +5,49 @@
 #define LOCAL_DEV_ENV 0
 #endif
 
+#if LOCAL_DEV_ENV
+#include <sys/time.h>
+#endif
+
+#if LOCAL_DEV_ENV
+#include <stdarg.h>
+
+double getTime(struct timeval *startTimeval, struct timeval *endTimeval)
+{
+    long seconds = endTimeval->tv_sec - startTimeval->tv_sec;
+    long microseconds = endTimeval->tv_usec - startTimeval->tv_usec;
+    return (double)seconds + (double)microseconds * 0.000001f;
+}
+void storeTime(struct timeval *pTimeval)
+{
+    gettimeofday(pTimeval, 0);
+}
+
+#if 0
+void logError(const char *pStr, ...)
+{
+    va_list args;
+    va_start(args, pStr);
+    fprintf(stderr, pStr, args);
+    va_end(args);
+}
+#endif
+
+#define logError(...) fprintf(stderr,__VA_ARGS__)
+#endif
+
+#if LOCAL_DEV_ENV
+long long int clearAssignments = 0, assignments = 0;
+long long int primeFactorizations = 0;
+struct timeval begin, inEnd, sortEnd, end, globalBegin, globalEnd;
+struct timeval primeClearEnd, primeEnd, primeTestEnd;
+#endif
+
+#define MAX_X 1000000
 #define MAX_N 100000
+
+typedef long long int ll;
+typedef unsigned long long int ull;
 
 int numbers[MAX_N];
 
@@ -18,21 +60,21 @@ typedef struct
 NumberWithIndex indexedNumbers[MAX_N];
 
 #define SMALL_NUMBER_LIMIT 10
-int numDivisors[11] = {
-        0,
-        //
-        1,
-        2,
-        2,
-        3,
-        //
-        2,
-        4,
-        2,
-        4,
-        //
-        3,
-        4};
+int numDivisorsForSmallNumbers[11] = {
+    0,
+    //
+    1,
+    2,
+    2,
+    3,
+    //
+    2,
+    4,
+    2,
+    4,
+    //
+    3,
+    4};
 
 #define NUM_PRIMES 1000
 int primes[NUM_PRIMES] = {
@@ -52,41 +94,271 @@ int cmp(const void *pA, const void *pB)
     return 0;
 }
 
+#define NUM_DIVISORS 1000000
+
+int allNumDivisors[NUM_DIVISORS + 1];
+
+#define PRIME_BIT_MASK 0xFFFFFFFFFFFFFFF8
+
+// Counters for all primes >= 11
+// 11*13*17*19*23 = 1062347
+ll allNumDivisorsForPrimes[MAX_X + 1];
+
+#define DUPLICATE_CHECK_LIMIT 1000
+#define DUPLICATE_SORT_LIMIT 100
+#define DUPLICATE_SIZE ((MAX_X + 63) / 64) + 1
+// Bit set if the value recognized
+// Later cleared and used to remember whether the value is finally computed
+ull duplicateOrComputedBits[DUPLICATE_SIZE] = {
+    0,
+};
+
+void calculateDivisors(int maxX)
+{
+    for (int i = 1; i <= maxX; i++)
+    {
+        allNumDivisors[i] = 0;
+#if LOCAL_DEV_ENV
+        ++assignments;
+#endif
+    }
+    for (int i = 1; i <= maxX; i++)
+    {
+        for (int j = i; j <= maxX; j += i)
+        {
+            allNumDivisors[j]++;
+#if LOCAL_DEV_ENV
+            ++assignments;
+#endif
+        }
+    }
+}
+
+/**
+ * We save primes > 11,
+ * exponents for these primes should calculated later if needed
+ */
+void calculateDivisorsForPrimes(int maxX, int minX, int useDuplicateBits)
+{
+    // 13*17*19*23 is 96577
+    // 13*17*19*23*29 is 2800733
+    // 1000.th prime is 7979, so at most 13 bits required for a prime.
+    // We could also store the index (0-999) of the prime and look up.
+    // But storing prime factors > 11 directly is more efficient
+    // We would need to store at most 13*5 + 3 = 68 bits
+    // 68 bits is more than 64bits of a long long
+    //  We know than every prime > 2 has the form (2*n+1)
+    // I.e. we only need to store n, i.e. 12 bits per prime
+    // and in the sum 5*12+3=63. Fine!
+    int *pPrimes = &primes[0];
+    int i = 0;
+    while (*pPrimes <= 11)
+    {
+        ++i;
+        ++pPrimes;
+    }
+
+    if (useDuplicateBits > 0)
+    {
+        for (; i < NUM_PRIMES; i++)
+        {
+            int p = *pPrimes;
+            if (p > maxX)
+            {
+                return;
+            }
+            ++pPrimes;
+
+            int j = 1;
+            if (p < minX)
+            {
+                j = minX / p; // will always be >=1
+            }
+            j *= p;
+
+            ll pToStore = (p - 1) >> 1;
+            for (; j <= maxX; j += p)
+            {
+                ull bit = (0x1UL << (j & 63));
+                int offset = j >> 6;
+#if LOCAL_DEV_ENV
+                // fprintf(stderr, "@offset: %d -> %d | %d | %d\n", j, offset, maxX, p);
+#endif
+                if ((duplicateOrComputedBits[offset] & bit) != 0)
+                {
+                    ll v = allNumDivisorsForPrimes[j];
+                    // Shift & set prime and add the size
+                    v = (v << 12) | pToStore;
+                    allNumDivisorsForPrimes[j] = v;
+#if LOCAL_DEV_ENV
+                    ++assignments;
+#endif
+                }
+            }
+        }
+    }
+    else
+    {
+        for (int j = 1; j <= maxX; j++)
+        {
+            allNumDivisorsForPrimes[j] = 0;
+#if LOCAL_DEV_ENV
+            ++assignments;
+#endif
+        }
+
+        for (; i < NUM_PRIMES; i++)
+        {
+            int p = *pPrimes;
+            if (p > maxX)
+            {
+                return;
+            }
+            ++pPrimes;
+            int j = 1;
+            if (p < minX)
+            {
+                j = minX / p; // will always be >=1
+            }
+            j *= p;
+
+            ll pToStore = (p - 1) >> 1;
+            for (; j <= maxX; j += p)
+            {
+                ll v = allNumDivisorsForPrimes[j];
+                // Shift & set prime and add the size
+                v = (v << 12) | pToStore;
+                allNumDivisorsForPrimes[j] = v;
+#if LOCAL_DEV_ENV
+                ++assignments;
+#endif
+            }
+        }
+    }
+}
+
+#if LOCAL_DEV_ENV
+// First value is the size
+int allPrimeFactors[MAX_N + 1][16];
+int allPrimeFactorExponents[MAX_N + 1][16];
+
+void logPrimeFactor(int num, int idx, int factor, int exponent)
+{
+    if (exponent >= 1)
+    {
+        int size = allPrimeFactors[idx][0] + 1;
+        allPrimeFactors[idx][size] = factor;
+        allPrimeFactorExponents[idx][size] = exponent;
+        allPrimeFactors[idx][0] = size;
+        allPrimeFactorExponents[idx][0] = num;
+    }
+}
+#endif
+
 int main()
 {
-    int N, value;
+    int N, value, duplicates = 0, minX = MAX_X, maxX = SMALL_NUMBER_LIMIT;
 
     if (1 != scanf("%d", &N))
     {
         return 1;
     }
-
-    int j=0;
-    // collect valid ones
+#if LOCAL_DEV_ENV
+    storeTime(&globalBegin);
     for (int i = 0; i < N; i++)
     {
-        if (1 != scanf("%d", &value))
-        {
-            return 1;
-        }
-        if(value <= SMALL_NUMBER_LIMIT) {
-            numbers[i] = numDivisors[value];
-            continue;
-        }
-
-        indexedNumbers[j].num = value;
-        indexedNumbers[j].index = i;
-        j++;
+        allPrimeFactors[i][0] = 0;
     }
-    int N2 = j;
-    #if LOCAL_DEV_ENV
-            fprintf(stderr, "Before sort!\n");
 #endif
-    // We sort to avoid same calculations
-    qsort(indexedNumbers, N2, sizeof(NumberWithIndex), cmp);
+    int j = 0;
+    if (N >= DUPLICATE_CHECK_LIMIT)
+    {
+        // collect valid ones
+        for (int i = 0; i < N; i++)
+        {
+            if (1 != scanf("%d", &value))
+            {
+                return 1;
+            }
 
-    int primeFactors[10];
-    int primeSize = 0;
+            if (value <= SMALL_NUMBER_LIMIT)
+            {
+                numbers[i] = numDivisorsForSmallNumbers[value];
+                continue;
+            }
+            if (minX > value)
+            {
+                minX = value;
+            }
+            if (maxX < value)
+            {
+                maxX = value;
+            }
+            ull bits = (0x1UL << (value % 64));
+            ull *p = &duplicateOrComputedBits[(value >> 6)];
+            if (((*p) & bits) == 0)
+            {
+                *p |= bits;
+            }
+            else
+            {
+                ++duplicates;
+            }
+
+            indexedNumbers[j].num = value;
+            indexedNumbers[j].index = i;
+            j++;
+        }
+    }
+    else
+    {
+        // collect valid ones
+        for (int i = 0; i < N; i++)
+        {
+            if (1 != scanf("%d", &value))
+            {
+                return 1;
+            }
+            if (value <= SMALL_NUMBER_LIMIT)
+            {
+                numbers[i] = numDivisorsForSmallNumbers[value];
+                continue;
+            }
+            if (minX > value)
+            {
+                minX = value;
+            }
+            if (maxX < value)
+            {
+                maxX = value;
+            }
+            ull bits = (0x1UL << (value % 64));
+            ull *p = &duplicateOrComputedBits[(value >> 6)];
+            if (((*p) & bits) == 0)
+            {
+                *p |= bits;
+            }
+
+            indexedNumbers[j].num = value;
+            indexedNumbers[j].index = i;
+            j++;
+        }
+    }
+
+#if LOCAL_DEV_ENV
+    storeTime(&inEnd);
+    double sortTime = 0, inTime = getTime(&globalBegin, &inEnd);
+#endif
+    int N2 = j;
+    if (duplicates >= DUPLICATE_SORT_LIMIT)
+    {
+        // We sort to avoid same calculations
+        qsort(indexedNumbers, N2, sizeof(NumberWithIndex), cmp);
+#if LOCAL_DEV_ENV
+        storeTime(&sortEnd);
+        sortTime = getTime(&inEnd, &sortEnd);
+#endif
+    }
 
     int prevNum = -1, lastCount = 0;
     // We perform prime factorization
@@ -94,68 +366,242 @@ int main()
     //- if it's not prime, then we can multiply different prime exponents
     // E.g. 90 => 2^1 , 3^2 , 5^1, we multiply (1+1)*(2+1)*(1+1) = 12
     // Divisors: 1,2,3,5, 6,9,10,15, 18,30,45,90
-    
     int i = 0;
 
 #if LOCAL_DEV_ENV
-            fprintf(stderr, "Before large numbers!\n");
+    storeTime(&begin);
 #endif
-    for (; i < N2; i++)
+    // calculateDivisors(maxX);
+#if LOCAL_DEV_ENV
+    storeTime(&end);
+    double elapsedRaw = getTime(&begin, &end);
+    ll rawAssignments = assignments;
+    assignments = 0;
+    storeTime(&begin);
+    double checkElapsed, primesEndTime, primesClearTime, primesTestTime;
+#endif
+    int primeLookup = 1;
+
+    if (primeLookup > 0)
     {
-        int dstIdx = indexedNumbers[i].index;
-        if (prevNum == indexedNumbers[i].num)
+        calculateDivisorsForPrimes(maxX, minX, N + 1 - DUPLICATE_CHECK_LIMIT);
+#if LOCAL_DEV_ENV
+        storeTime(&primeEnd);
+        primesEndTime = getTime(&begin, &primeEnd);
+#endif
+        i = N2;
+        for (; i < N2; i++)
         {
-            numbers[dstIdx] = lastCount;
-            continue;
-        }
-        int num = indexedNumbers[i].num;
-        prevNum = num;
-        
-        primeSize = 0;
-        int pIdx = 0;
-        for (; pIdx < NUM_PRIMES && num > 1; pIdx++)
-        {
-            int c = 0, p = primes[pIdx];
-            while (num % p == 0)
+            int offset = indexedNumbers[i].num >> 6;
+            if (duplicateOrComputedBits[offset] != 0)
             {
-                num /= p;
-                ++c;
+                duplicateOrComputedBits[offset] = 0;
+#if LOCAL_DEV_ENV
+                ++clearAssignments;
+#endif
             }
-            if (c > 0)
+        }
+#if LOCAL_DEV_ENV
+        storeTime(&primeClearEnd);
+        primesClearTime = getTime(&primeEnd, &primeClearEnd);
+#endif
+        //
+        i = 0;
+        for (; i < N2; i++)
+        {
+            int dstIdx = indexedNumbers[i].index;
+            if (prevNum == indexedNumbers[i].num)
             {
-                primeFactors[primeSize] = c;
-                primeSize++;
+                numbers[dstIdx] = lastCount;
                 continue;
             }
-            if (p * p > num)
+            int num = indexedNumbers[i].num;
+            prevNum = num;
+
+            ll otherPrimes = allNumDivisorsForPrimes[prevNum];
+
+            if (otherPrimes < 0)
             {
-                if (primeSize > 0)
+                lastCount = -otherPrimes;
+            }
+            else
+            {
+                lastCount = 1;
+
+                // Check primes 2 till 11
+                int c = 1;
+                while (num > 0 && (num & 0x1) == 0)
+                {
+                    ++c;
+                    num >>= 1;
+                }
+                lastCount *= c;
+#if LOCAL_DEV_ENV
+                logPrimeFactor(prevNum, dstIdx, 2, c-1);
+                ++primeFactorizations;
+#endif
+                int p = 3;
+                int lowPrimes = 0xB753; // 3,5,7,11
+                while (num > 2 && lowPrimes > 0)
+                {
+                    p = lowPrimes & 0xF;
+                    lowPrimes >>= 4;
+                    c = 1;
+                    while (num % p == 0)
+                    {
+                        ++c;
+                        num /= p;
+                    }
+#if LOCAL_DEV_ENV
+                    logPrimeFactor(prevNum, dstIdx, p, c-1);
+                    ++primeFactorizations;
+#endif
+                    lastCount *= c;                    
+                }
+
+                if (num > 1)
+                {
+                        // shift: size bits not required anymore
+                        // otherPrimes >>= 3;
+                        //num = prevNum;
+                        while (otherPrimes > 0)
+                        {
+                            // We skipped last bits when storing!
+                            int p = ((otherPrimes & 0xFFF) << 1) + 1;
+                            otherPrimes >>= 12;
+                            c = 1;
+                            while (num % p == 0)
+                            {
+                                num /= p;
+                                ++c;
+                            }
+#if LOCAL_DEV_ENV
+                            logPrimeFactor(prevNum, dstIdx, p, c-1);
+                            ++primeFactorizations;
+#endif
+                            lastCount *= c;
+                        }
+                        if(num>1) {
+                            if(num>primes[999]) {
+                                lastCount *= 2;
+                            }
+                            
+                            #if LOCAL_DEV_ENV
+                            logPrimeFactor(prevNum, dstIdx, num, 1);
+#endif
+                        }
+                }
+                allNumDivisorsForPrimes[prevNum] = -lastCount;
+            }
+
+            numbers[dstIdx] = lastCount;
+        }
+
+#if LOCAL_DEV_ENV
+        storeTime(&primeTestEnd);
+        primesTestTime = getTime(&primeEnd, &primeTestEnd);
+#endif
+    }
+    else
+    {
+#if LOCAL_DEV_ENV
+        storeTime(&begin);
+#endif
+        int primeFactors[10];
+        int primeSize = 0;
+        i = 0;
+        for (; i < N2; i++)
+        {
+            int dstIdx = indexedNumbers[i].index;
+            if (prevNum == indexedNumbers[i].num)
+            {
+                numbers[dstIdx] = lastCount;
+                continue;
+            }
+            int num = indexedNumbers[i].num;
+            prevNum = num;
+
+            primeSize = 0;
+            int pIdx = 0;
+            for (; pIdx < NUM_PRIMES && num > 1; pIdx++)
+            {
+                int c = 0, p = primes[pIdx];
+                while (num % p == 0)
+                {
+                    num /= p;
+                    ++c;
+                }
+#if LOCAL_DEV_ENV
+                ++primeFactorizations;
+#endif
+
+                if (c > 0)
+                {
+                    primeFactors[primeSize] = c;
+                    primeSize++;
+                }
+                else if (p * p > num)
                 {
                     primeFactors[primeSize] = 1;
                     primeSize++;
+                    break;
                 }
-                break;
             }
-        }
-        if (primeSize == 0)
-        {
-            lastCount = 2;
-        }
-        else
-        {
-            lastCount = 1;
-            for (int j = 0; j < primeSize; j++)
+            if (primeSize == 0)
             {
-                lastCount *= (primeFactors[j] + 1);
+                lastCount = 2;
             }
+            else
+            {
+                lastCount = 1;
+                for (int j = 0; j < primeSize; j++)
+                {
+                    lastCount *= (primeFactors[j] + 1);
+                }
+            }
+            numbers[dstIdx] = lastCount;
         }
-        numbers[dstIdx] = lastCount;
+#if LOCAL_DEV_ENV
+        storeTime(&end);
+        checkElapsed = getTime(&begin, &end);
+#endif
     }
+#if LOCAL_DEV_ENV
+    storeTime(&end);
+#endif
 
     for (i = 0; i < N; i++)
     {
         printf("%d\n", numbers[i]);
+#if LOCAL_DEV_ENV
+        int num = allPrimeFactorExponents[i][0];
+        int size = allPrimeFactors[i][0];
+        logError("%d: ", num);
+        for (int j = 1; j <= size; j++)
+        {
+            logError(" %d(^%d)", allPrimeFactors[i][j], allPrimeFactorExponents[i][j]);
+        }
+        logError("\n");
+
+#endif
     }
+
+#if LOCAL_DEV_ENV
+    gettimeofday(&globalEnd, 0);
+    double elapsedOut = getTime(&end, &globalEnd);
+    double elapsed = getTime(&globalBegin, &globalEnd);
+
+    logError("#in-time: %f | #dups: %d\n", inTime, duplicates);
+    logError("#sort-time: %f\n", sortTime);
+    logError("#time: %f | #assignments: %lld\n", elapsedRaw, rawAssignments);
+    const char *pStr = "#prime:\n create: %f\n clear: %f\n test: %f\n total: %f\n";
+    double t = primesClearTime + primesEndTime + primesTestTime;
+    logError(pStr, primesEndTime, primesClearTime, primesTestTime, t, assignments);
+    const char *pAssignments = "#assignments: %lld | #clear: %lld\n";
+    logError(pAssignments, assignments, clearAssignments);
+    logError("#out-time: %f | check-time: %f\n", elapsedOut, checkElapsed);
+    logError("#time: %f |#factorizations: %lld\n", elapsed, primeFactorizations);
+#endif
 
     return 0;
 }
