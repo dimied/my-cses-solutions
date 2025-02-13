@@ -33,7 +33,7 @@ void logError(const char *pStr, ...)
 }
 #endif
 
-#define logError(...) fprintf(stderr,__VA_ARGS__)
+#define logError(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
 #if LOCAL_DEV_ENV
@@ -175,9 +175,11 @@ void calculateDivisorsForPrimes(int maxX, int minX, int useDuplicateBits)
                 j = minX / p; // will always be >=1
             }
             j *= p;
+            int limit = maxX / p;
+            limit *= p;
 
             ll pToStore = (p - 1) >> 1;
-            for (; j <= maxX; j += p)
+            for (; j <= limit; j += p)
             {
                 ull bit = (0x1UL << (j & 63));
                 int offset = j >> 6;
@@ -221,6 +223,8 @@ void calculateDivisorsForPrimes(int maxX, int minX, int useDuplicateBits)
                 j = minX / p; // will always be >=1
             }
             j *= p;
+            int limit = maxX / p;
+            limit *= p;
 
             ll pToStore = (p - 1) >> 1;
             for (; j <= maxX; j += p)
@@ -350,7 +354,7 @@ int main()
     double sortTime = 0, inTime = getTime(&globalBegin, &inEnd);
 #endif
     int N2 = j;
-    if (duplicates >= DUPLICATE_SORT_LIMIT)
+    if (1 == 0 && duplicates >= DUPLICATE_SORT_LIMIT)
     {
         // We sort to avoid same calculations
         qsort(indexedNumbers, N2, sizeof(NumberWithIndex), cmp);
@@ -407,6 +411,7 @@ int main()
 #endif
         //
         i = 0;
+        int largestPrime = primes[999];
         for (; i < N2; i++)
         {
             int dstIdx = indexedNumbers[i].index;
@@ -427,69 +432,77 @@ int main()
             else
             {
                 lastCount = 1;
-
-                // Check primes 2 till 11
                 int c = 1;
-                while (num > 0 && (num & 0x1) == 0)
+                // Check primes 2 till 11
+                if ((num & 0x1) == 0)
                 {
-                    ++c;
-                    num >>= 1;
-                }
-                lastCount *= c;
-#if LOCAL_DEV_ENV
-                logPrimeFactor(prevNum, dstIdx, 2, c-1);
-                ++primeFactorizations;
-#endif
-                int p = 3;
-                int lowPrimes = 0xB753; // 3,5,7,11
-                while (num > 2 && lowPrimes > 0)
-                {
-                    p = lowPrimes & 0xF;
-                    lowPrimes >>= 4;
-                    c = 1;
-                    while (num % p == 0)
+                    while (num > 0 && (num & 0x1) == 0)
                     {
                         ++c;
-                        num /= p;
+                        num >>= 1;
                     }
+                    lastCount *= c;
 #if LOCAL_DEV_ENV
-                    logPrimeFactor(prevNum, dstIdx, p, c-1);
+                    logPrimeFactor(prevNum, dstIdx, 2, c - 1);
                     ++primeFactorizations;
 #endif
-                    lastCount *= c;                    
+                }
+
+                int p = 3;
+                if (0 == (num % 3) * (num % 5) * (num % 7) * (num % 11))
+                {
+                    int lowPrimes = 0xB753; // 3,5,7,11
+                    while (num > 2 && lowPrimes > 0)
+                    {
+                        p = lowPrimes & 0xF;
+                        lowPrimes >>= 4;
+                        c = 1;
+                        while (num % p == 0)
+                        {
+                            ++c;
+                            num /= p;
+                        }
+#if LOCAL_DEV_ENV
+                        logPrimeFactor(prevNum, dstIdx, p, c - 1);
+                        ++primeFactorizations;
+#endif
+                        lastCount *= c;
+                    }
                 }
 
                 if (num > 1)
                 {
-                        // shift: size bits not required anymore
-                        // otherPrimes >>= 3;
-                        //num = prevNum;
-                        while (otherPrimes > 0)
+                    // shift: size bits not required anymore
+                    // otherPrimes >>= 3;
+                    // num = prevNum;
+                    while (otherPrimes > 0)
+                    {
+                        // We skipped last bits when storing!
+                        int p = ((otherPrimes & 0xFFF) << 1) + 1;
+                        otherPrimes >>= 12;
+                        c = 1;
+                        while (num % p == 0)
                         {
-                            // We skipped last bits when storing!
-                            int p = ((otherPrimes & 0xFFF) << 1) + 1;
-                            otherPrimes >>= 12;
-                            c = 1;
-                            while (num % p == 0)
-                            {
-                                num /= p;
-                                ++c;
-                            }
+                            num /= p;
+                            ++c;
+                        }
 #if LOCAL_DEV_ENV
-                            logPrimeFactor(prevNum, dstIdx, p, c-1);
-                            ++primeFactorizations;
+                        logPrimeFactor(prevNum, dstIdx, p, c - 1);
+                        ++primeFactorizations;
 #endif
-                            lastCount *= c;
+                        lastCount *= c;
+                    }
+                    if (num > 1)
+                    {
+                        if (num > largestPrime)
+                        {
+                            lastCount *= 2;
                         }
-                        if(num>1) {
-                            if(num>primes[999]) {
-                                lastCount *= 2;
-                            }
-                            
-                            #if LOCAL_DEV_ENV
-                            logPrimeFactor(prevNum, dstIdx, num, 1);
+
+#if LOCAL_DEV_ENV
+                        logPrimeFactor(prevNum, dstIdx, num, 1);
 #endif
-                        }
+                    }
                 }
                 allNumDivisorsForPrimes[prevNum] = -lastCount;
             }
@@ -573,7 +586,7 @@ int main()
     for (i = 0; i < N; i++)
     {
         printf("%d\n", numbers[i]);
-#if LOCAL_DEV_ENV
+#if LOCAL_DEV_ENV && 0
         int num = allPrimeFactorExponents[i][0];
         int size = allPrimeFactors[i][0];
         logError("%d: ", num);
