@@ -34,6 +34,7 @@ unzip -o $tp -d $fp
 numfails=0
 numall=0
 ct=`date +%m%d_%H%M%S`
+dts=`date +%d_%H%M%S`
 rtf=$rtf"/"$ct".txt"
 echo "Times: "$rtf
 
@@ -43,6 +44,7 @@ for f in `ls -1 $fp/*.in | sort`; do
     res=${f//in/res}
     err=${f//in/err}
     tlog=${f//in/time.log}
+    err=$err"."$dts
 
     rt=`basename $f`
 
