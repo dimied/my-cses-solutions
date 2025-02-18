@@ -383,7 +383,6 @@ int cmpExponents(const void *pA, const void *pB)
 
 void sortedApproach(int N)
 {
-
     if (N <= SORTED_LIMIT)
     {
         simpleApproach(N);
@@ -528,11 +527,10 @@ void sortedApproach(int N)
     }
 
     // Now sort by value
-        qsort(pGlobalNums, N2, sizeof(TestedValue), cmp);
-
+    qsort(pGlobalNums, N2, sizeof(TestedValue), cmp);
 
     pNums = pGlobalNums;
-    ll lastResult = -1, lastExponent=-1, lastExponent2=-1, lastValue=-1;
+    ll lastResult = -1, lastExponent = -1, lastExponent2 = -1, lastValue = -1;
 
     for (int i = 0; i < N2; i++)
     {
@@ -546,12 +544,13 @@ void sortedApproach(int N)
         {
             continue;
         }
-        if(lastValue == value && lastExponent == exponent && lastExponent2 == exponent2) {
+        if (lastValue == value && lastExponent == exponent && lastExponent2 == exponent2)
+        {
             numbers[index] = (int)lastResult;
             continue;
         }
-        lastExponent=exponent, lastExponent=exponent2, lastValue=value;
-        //TODO: same value calc
+        lastExponent = exponent, lastExponent = exponent2, lastValue = value;
+        // TODO: same value calc
 
         ll expResult;
         if (exponent2 >= 0)
@@ -584,19 +583,100 @@ void sortedApproach(int N)
 #endif
 }
 
+#define MAX_ITEM_INPUT_LENGTH 10
+#define MAX_INPUT_CHAR_LENGTH (MAX_ITEM_INPUT_LENGTH + 2) * MAX_N * 3
+char inputBuffer[MAX_INPUT_CHAR_LENGTH];
+
+int readInput(int N, int itemsPerLine, int *pResult, char *pInput, int maxSize)
+{
+#if defined(__GNUC__) || defined(__GNUG__)
+    // size_t bytesRead =
+    fread_unlocked(pInput, 1, maxSize, stdin);
+    // logError("#bytes: %ld for %d\n", bytesRead, N);
+    int lastNum = 0, charCount = 0, itemCount = 0;
+    if (*pInput != 0)
+    {
+        do
+        {
+            char c = *pInput;
+            if (c >= '0' && c <= '9')
+            {
+                lastNum = lastNum * 10 + (c - '0');
+                ++charCount;
+            }
+            else if (charCount > 0)
+            {
+                *pResult = lastNum;
+                ++pResult;
+                ++itemCount;
+                lastNum = 0;
+                charCount = 0;
+            }
+
+            ++pInput;
+        } while (*pInput != 0);
+        if (charCount > 0)
+        {
+            *pResult = lastNum;
+            ++pResult;
+            ++itemCount;
+        }
+    }
+
+    return itemCount / itemsPerLine;
+#else
+    switch (itemsPerLine)
+    {
+    case 1:
+        for (int i = 0; 0 && i < N; i++)
+        {
+            if (1 != scanf("%d", pResult))
+            {
+                return 0;
+            }
+            ++pResult;
+        }
+        break;
+    case 2:
+        for (int i = 0; 0 && i < N; i++)
+        {
+            if (2 != scanf("%d %d", pResult, pResult + 1))
+            {
+                return 0;
+            }
+            pResult += 2;
+        }
+        break;
+    case 3:
+        for (int i = 0; 0 && i < N; i++)
+        {
+            if (3 != scanf("%d %d %d", pResult, pResult + 1, pResult + 2))
+            {
+                return 0;
+            }
+            pResult += 3;
+        }
+        break;
+    default:
+        return 0;
+    }
+
+    return N;
+#endif
+}
+
 #if 1
 int main()
 {
     int N, inValue, inExponent, inExponent2;
     int *pIn = &inputNumbers[0];
-    int numSmallValues = 0;
     START_INPUT_MEASURE
     if (1 != scanf("%d", &N))
     {
         return 1;
     }
 
-    for (int i = 0; i < N; i++)
+    for (int i = 0; 0 && i < N; i++)
     {
         if (3 != scanf("%d %d %d", &inValue, &inExponent, &inExponent2))
         {
@@ -608,11 +688,9 @@ int main()
         ++pIn;
         *pIn = inExponent2;
         ++pIn;
-        if (inValue < 6)
-        {
-            ++numSmallValues;
-        }
     }
+    int is = readInput(N, 3, pIn, inputBuffer, 3 * N * (MAX_ITEM_INPUT_LENGTH + 2));
+    logError("IN: %d %d\n", N, is);
     END_INPUT_MEASURE
 
     START_EXEC_MEASURE
